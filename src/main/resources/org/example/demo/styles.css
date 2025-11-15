@@ -11,6 +11,25 @@
   -fx-text-fill: #2e7d32;
 }
 
+
+/* Player info label */
+.player-label {
+  -fx-font-size: 14px;
+  -fx-font-weight: bold;
+  -fx-text-fill: #1565c0; /* 蓝色系，与coins-label区分 */
+  -fx-padding: 0 10px 0 0;
+}
+
+/* Status message label */
+.status-label {
+  -fx-font-size: 14px;
+  -fx-text-fill: #757575; /* 灰色，用于状态信息 */
+  -fx-font-style: italic;
+}
+.status-label.success { -fx-text-fill: #2e7d32; }
+.status-label.error { -fx-text-fill: #c62828; }
+.status-label.info { -fx-text-fill: #1565c0; }
+
 /* Game board container */
 .game-board {
   -fx-padding: 8;
@@ -30,6 +49,8 @@
   -fx-border-radius: 8;
   -fx-border-width: 1;
   -fx-border-color: rgba(0,0,0,0.15);
+  -fx-min-width: 80px;
+  -fx-min-height: 40px;
 }
 
 .plot-button:selected {
@@ -58,28 +79,44 @@
 
 .plot-button.state-ripe {
   /* harvest-ready golden */
-  -fx-background-color: linear-gradient(#ffe082, #ffd54f);
+  -fx-background-color: linear-gradient(#ffe082, #ffca28);
   -fx-text-fill: #4e342e;
 }
 .plot-button.state-ripe:hover {
   -fx-background-color: linear-gradient(#ffecb3, #ffe082);
 }
 
-/* Action buttons */
+/* Action buttons specific styles */
 .action-plant {
   -fx-background-color: linear-gradient(#81c784, #66bb6a);
   -fx-text-fill: white;
 }
-.action-plant:hover { -fx-background-color: linear-gradient(#90d290, #73c579); }
+.action-plant:hover {
+  -fx-background-color: linear-gradient(#90d290, #73c579);
+}
 
 .action-harvest {
   -fx-background-color: linear-gradient(#ffd54f, #ffca28);
   -fx-text-fill: #4e342e;
 }
-.action-harvest:hover { -fx-background-color: linear-gradient(#ffe082, #ffd54f); }
+.action-harvest:hover {
+  -fx-background-color: linear-gradient(#ffe082, #ffd54f);
+}
 
 .action-steal {
   -fx-background-color: linear-gradient(#64b5f6, #42a5f5);
   -fx-text-fill: white;
 }
-.action-steal:hover { -fx-background-color: linear-gradient(#74bdf9, #52adf8); }
+.action-steal:hover {
+  -fx-background-color: linear-gradient(#74bdf9, #52adf8);
+}
+
+/* 添加按钮基础样式 */
+.button {
+  -fx-min-width: 80px;
+  -fx-min-height: 35px;
+  -fx-font-size: 12px;
+  -fx-font-weight: 600;
+  -fx-background-radius: 6;
+  -fx-border-radius: 6;
+}

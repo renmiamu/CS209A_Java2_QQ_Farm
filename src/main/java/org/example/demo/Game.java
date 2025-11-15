@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class Game {
 
+    //EMPTY（空）、GROWING（生长中）、RIPE（成熟）
     public enum PlotState {EMPTY, GROWING, RIPE}
 
     private static final int ROWS = 4;

@@ -6,13 +6,15 @@
 <?import javafx.scene.layout.VBox?>
 
 <?import java.net.URL?>
-<VBox xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml" fx:controller="org.example.demo.Controller" spacing="10" styleClass="farm-root">
+<VBox xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.demo.Controller" spacing="10" styleClass="farm-root">
   <stylesheets>
     <URL value="@styles.css" />
   </stylesheets>
+
   <!-- Top status bar: coins + status message -->
   <HBox spacing="10" alignment="CENTER_LEFT">
     <Label fx:id="coinsLabel" text="Coins: 0 | Ready." styleClass="coins-label" />
+    <Label fx:id="playerLabel" text="Player: " styleClass="player-label" />
   </HBox>
 
   <!-- Game board grid (cells created by Controller) -->
@@ -20,8 +22,10 @@
 
   <!-- Action buttons -->
   <HBox spacing="10" alignment="CENTER">
-    <Button fx:id="plantButton" text="Plant" onAction="#handlePlant" styleClass="button action-plant" />
-    <Button fx:id="harvestButton" text="Harvest" onAction="#handleHarvest" styleClass="button action-harvest" />
-    <Button fx:id="stealButton" text="Steal" onAction="#handleSteal" styleClass="button action-steal" />
+    <Button fx:id="plantButton" text="Plant" onAction="#handlePlant" styleClass="plot-button action-plant" />
+    <Button fx:id="harvestButton" text="Harvest" onAction="#handleHarvest" styleClass="plot-button action-harvest" />
+    <Button fx:id="stealButton" text="Steal" onAction="#handleSteal" styleClass="plot-button action-steal" />
+    <Button fx:id="visitButton" text="Visit" onAction="#handleVisit" styleClass="plot-button action-visit" />
+    <Button fx:id="returnButton" text="Return" onAction="#handleReturn" styleClass="plot-button action-return" />
   </HBox>
 </VBox>
