@@ -62,6 +62,7 @@ public class Controller {
 
     private int selectedRow = -1;
     private int selectedCol = -1;
+    private int[][] plotYields = new int[4][4]; // track remaining yields
 
     public void init(ClientNetworkService clientNetworkService) {
         this.clientNetworkService = clientNetworkService;
@@ -162,7 +163,7 @@ public class Controller {
     }
 
     private void parseFarmState(String[] parts) {
-        if (parts.length >= 19) { // FARM username coins + 16 plot states
+        if (parts.length >= 19) { // FARM username coins + 16 plot states (now STATE:yield)
             String playerName = parts[1];
             this.coins = Integer.parseInt(parts[2]);
             currentViewPlayer = playerName;
@@ -173,8 +174,15 @@ public class Controller {
             int index = 3;
             for (int i = 0; i < 4; i++) {
                 for (int j = 0; j < 4; j++) {
-                    PlotState newState = PlotState.valueOf(parts[index++]);
+                    String token = parts[index++];
+                    String[] seg = token.split(":");
+                    PlotState newState = PlotState.valueOf(seg[0]);
+                    int yield = 0;
+                    if (seg.length > 1) {
+                        try { yield = Integer.parseInt(seg[1]); } catch (NumberFormatException ignored) { }
+                    }
                     farmState[i][j] = newState;
+                    plotYields[i][j] = yield;
                 }
             }
         }
@@ -233,7 +241,9 @@ public class Controller {
                 break;
             case RIPE:
                 icon = "\uD83C\uDF3E"; // sheaf of rice
-                text = "Ripe";
+                int yield = plotYields[row][col];
+                int pct = (int)Math.round(yield / 12.0 * 100); // BASE_YIELD = 12
+                text = "Ripe " + pct + "%";
                 cell.getStyleClass().add("state-ripe");
                 break;
             default:

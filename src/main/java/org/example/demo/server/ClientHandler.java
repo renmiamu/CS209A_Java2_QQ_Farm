@@ -53,6 +53,11 @@ public class ClientHandler implements Runnable{
 
     }
 
+    void pushFarmStateString(String farmState) {
+        // Push a pre-built farm state to this client (used for visitor real-time updates)
+        sendMessage(farmState);
+    }
+
     private void sendMessage(String message) {
         if (out != null) {
             out.println(message);
@@ -135,6 +140,8 @@ public class ClientHandler implements Runnable{
         if (state.plantCrop(row, col)) {
             sendMessage("SUCCESS Crop planted! Will mature in 5 seconds");
             sendFarmState();
+            // Notify any visitors of my farm
+            state.notifyViewers();
         } else {
             sendMessage("ERROR Cannot plant here");
         }
@@ -164,6 +171,8 @@ public class ClientHandler implements Runnable{
         if (state.harvestCrop(row, col)) {
             sendMessage("SUCCESS Crop harvested!");
             sendFarmState();
+            // Notify any visitors of my farm
+            state.notifyViewers();
         } else {
             sendMessage("ERROR Cannot harvest here");
         }
@@ -191,22 +200,42 @@ public class ClientHandler implements Runnable{
             sendMessage("ERROR Target player not found or offline");
             return;
         }
-        synchronized (targetState.getPlotLock(row,col)){
-            if (targetState.stealCrop(row,col)){
-                PlayerState selfState = server.getPlayerState(currentPlayer);
-                selfState.addCoins(4);
 
-                sendMessage("SUCCESS Stole crop from " + targetPlayer + "! +4 coins");
+        // New rule: target owner must currently be visiting someone else's farm (i.e., not on their own farm)
+        ClientHandler targetHandler = targetState.getClientHandler();
+        if (targetHandler == null) {
+            sendMessage("ERROR Cannot steal: target player is not controllable");
+            return;
+        }
+        // If owner is currently viewing their own farm, forbid stealing
+        if (targetPlayer.equals(targetHandler.currentViewPlayer)) {
+            sendMessage("ERROR Cannot steal: target player is currently on their own farm");
+            return;
+        }
+
+        synchronized (targetState.getPlotLock(row,col)){
+            int amount = targetState.stealCropWithAmount(row,col);
+            if (amount >= 0){
+                PlayerState selfState = server.getPlayerState(currentPlayer);
+                if (selfState != null && amount > 0) {
+                    selfState.addCoins(amount);
+                }
+
+                double percent = amount / 12.0; // BASE_YIELD is 12
+                String percentStr = String.format("%.0f%%", percent * 100);
+                sendMessage("SUCCESS Stole " + amount + " coins (" + percentStr + ") from " + targetPlayer);
                 sendFarmState();
 
-                // 通知被偷的玩家（如果在线）
-                ClientHandler targetHandler = targetState.getClientHandler();
                 if (targetHandler != null) {
-                    targetHandler.sendMessage("NOTIFY Your crop was stolen by " + currentPlayer);
-                    targetHandler.sendFarmState(); // 更新被偷玩家的界面
+                    targetHandler.sendMessage("NOTIFY Your crop had " + amount + " coins stolen (" + percentStr + ") by " + currentPlayer);
+                    targetHandler.sendFarmState();
+                }
+                targetState.notifyViewers();
+                if (selfState != null) {
+                    selfState.notifyViewers();
                 }
             } else {
-                sendMessage("ERROR Steal failed - crop not ripe or already stolen");
+                sendMessage("ERROR Steal failed - crop not ripe or empty");
             }
         }
 
@@ -229,6 +258,16 @@ public class ClientHandler implements Runnable{
             sendMessage("ERROR Friend not found or offline");
             return;
         }
+
+        // Unsubscribe from previous viewed player's viewer list if it was someone else
+        if (currentViewPlayer != null && !currentViewPlayer.equals(currentPlayer)) {
+            PlayerState prev = server.getPlayerState(currentViewPlayer);
+            if (prev != null) prev.removeViewer(this);
+        }
+
+        // Subscribe to friend's farm updates
+        friendState.addViewer(this);
+
         this.currentViewPlayer = friendName;
         sendMessage("SUCCESS Now visiting " + friendName + "'s farm");
         sendFarmState();
@@ -236,6 +275,12 @@ public class ClientHandler implements Runnable{
 
     private void handleReturn() {
         if (!checkLogin()) return;
+
+        // Remove from previous friend's viewer list
+        if (currentViewPlayer != null && !currentViewPlayer.equals(currentPlayer)) {
+            PlayerState prev = server.getPlayerState(currentViewPlayer);
+            if (prev != null) prev.removeViewer(this);
+        }
 
         this.currentViewPlayer = currentPlayer;
         sendMessage("SUCCESS Returned to your farm");
@@ -259,6 +304,12 @@ public class ClientHandler implements Runnable{
 
     private void disconnect(){
         isConnected = false;
+
+        // Cleanup viewer subscription if visiting someone else
+        if (currentViewPlayer != null && currentPlayer != null && !currentViewPlayer.equals(currentPlayer)) {
+            PlayerState prev = server.getPlayerState(currentViewPlayer);
+            if (prev != null) prev.removeViewer(this);
+        }
 
         if (currentPlayer != null) {
             server.removePlayer(currentPlayer);
