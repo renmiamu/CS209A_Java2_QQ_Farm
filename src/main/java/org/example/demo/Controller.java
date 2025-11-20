@@ -63,6 +63,7 @@ public class Controller {
     private int selectedRow = -1;
     private int selectedCol = -1;
     private int[][] plotYields = new int[4][4]; // track remaining yields
+    private int[][] plotGrowSeconds = new int[4][4]; // remaining seconds until ripe (approx)
 
     public void init(ClientNetworkService clientNetworkService) {
         this.clientNetworkService = clientNetworkService;
@@ -181,6 +182,16 @@ public class Controller {
                     if (seg.length > 1) {
                         try { yield = Integer.parseInt(seg[1]); } catch (NumberFormatException ignored) { }
                     }
+
+                    // if transitioned from EMPTY to GROWING (plant just started on my view), set 5s
+                    if (farmState[i][j] != PlotState.GROWING && newState == PlotState.GROWING) {
+                        plotGrowSeconds[i][j] = 5;
+                    }
+                    // if it became RIPE or EMPTY, clear timer
+                    if (newState != PlotState.GROWING) {
+                        plotGrowSeconds[i][j] = 0;
+                    }
+
                     farmState[i][j] = newState;
                     plotYields[i][j] = yield;
                 }
@@ -236,14 +247,14 @@ public class Controller {
                 break;
             case GROWING:
                 icon = "\uD83C\uDF31"; // seedling
-                text = "Growing";
+                int sec = plotGrowSeconds[row][col];
+                if (sec < 0) sec = 0;
+                text = "Growing " + sec + "s";
                 cell.getStyleClass().add("state-growing");
                 break;
             case RIPE:
                 icon = "\uD83C\uDF3E"; // sheaf of rice
-                int yield = plotYields[row][col];
-                int pct = (int)Math.round(yield / 12.0 * 100); // BASE_YIELD = 12
-                text = "Ripe " + pct + "%";
+                text = "Ripe"; // do not show yield percentage
                 cell.getStyleClass().add("state-ripe");
                 break;
             default:
@@ -280,6 +291,8 @@ public class Controller {
             refreshBoard();
             return;
         }
+        // 立刻在本地设置成长计时器为 5 秒，增强视觉反馈
+        plotGrowSeconds[selectedRow][selectedCol] = 5;
         clientNetworkService.sendMessage("PLANT " + selectedRow + " " + selectedCol);
     }
 
@@ -300,11 +313,6 @@ public class Controller {
 
     @FXML
     private void handleSteal() {
-        if (!ensureSelection()) {
-            showToast("Select a plot first.", "error");
-            refreshBoard();
-            return;
-        }
         if (currentPlayer == null) {
             showToast("Please login first.", "error");
             refreshBoard();
@@ -317,7 +325,9 @@ public class Controller {
         dialog.setContentText("Target player:");
 
         Optional<String> result = dialog.showAndWait();
-        result.ifPresent(targetPlayer -> clientNetworkService.sendMessage("STEAL " + targetPlayer + " " + selectedRow + " " + selectedCol));
+        result.ifPresent(targetPlayer ->
+                clientNetworkService.sendMessage("STEAL " + targetPlayer)
+        );
     }
 
     @FXML
@@ -367,9 +377,16 @@ public class Controller {
 
     private void startRefreshTicker() {
         refreshTimeline = new Timeline(new KeyFrame(Duration.seconds(1), event -> {
-            // 定期请求农场状态更新
+            // 每秒本地更新成长计时器
+            for (int i = 0; i < 4; i++) {
+                for (int j = 0; j < 4; j++) {
+                    if (farmState[i][j] == PlotState.GROWING && plotGrowSeconds[i][j] > 0) {
+                        plotGrowSeconds[i][j]--;
+                    }
+                }
+            }
+            // 状态更新由服务器推送，这里主要处理UI刷新
             if (currentPlayer != null && clientNetworkService != null && clientNetworkService.isConnected()) {
-                // 状态更新由服务器推送，这里主要处理UI刷新
                 refreshBoard();
             }
         }));

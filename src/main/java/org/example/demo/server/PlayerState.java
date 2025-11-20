@@ -6,6 +6,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Random;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class PlayerState {
 
@@ -76,46 +79,68 @@ public class PlayerState {
         return true;
     }
 
-    public synchronized boolean stealCrop(int row, int col){
-        if (farm[row][col] != PlotState.RIPE) return false;
-        if (yields[row][col] <= 0) return false; // nothing left to steal
+    /**
+     * New steal logic: randomly steal from at most 25% of currently ripe plots.
+     * Each stolen plot removes its full remaining yield (up to BASE_YIELD) and
+     * the thief gains BASE_YIELD coins per stolen plot.
+     *
+     * @return number of plots successfully stolen, or -1 if no eligible plots.
+     */
+    public synchronized int stealRandomRipePlots() {
+        // Collect indices of all ripe plots with remaining yield
+        List<int[]> ripePlots = new ArrayList<>();
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                if (farm[r][c] == PlotState.RIPE && yields[r][c] > 0) {
+                    ripePlots.add(new int[]{r, c});
+                }
+            }
+        }
+        int totalRipe = ripePlots.size();
+        if (totalRipe == 0) {
+            return -1; // no plots to steal from
+        }
 
-        // Random percentage between 0 and MAX_STEAL_PERCENT (inclusive)
-        double percent = random.nextDouble() * MAX_STEAL_PERCENT; // 0 <= percent < 0.25
-        // Calculate amount based on BASE_YIELD (requirement: coin = 12 * steal percentage)
-        int amount = (int)Math.round(BASE_YIELD * percent);
-        if (amount <= 0) {
-            // Allow zero steal (requirement includes 0%), but if 0, just return false? We'll treat as no-op success.
-            amount = 0;
+        // At most 25% of ripe plots, round down but at least 1 if there is any ripe plot
+        int maxToSteal = (int) Math.floor(totalRipe * MAX_STEAL_PERCENT);
+
+        // Shuffle to select random subset
+        Collections.shuffle(ripePlots, random);
+        int plotsToSteal = Math.min(maxToSteal, totalRipe);
+
+        int stolenPlots = 0;
+        for (int i = 0; i < plotsToSteal; i++) {
+            int[] idx = ripePlots.get(i);
+            int r = idx[0];
+            int c = idx[1];
+            if (farm[r][c] == PlotState.RIPE && yields[r][c] > 0) {
+                // Remove entire remaining yield from this plot
+                yields[r][c] = 0;
+                farm[r][c] = PlotState.EMPTY;
+                stolenPlots++;
+            }
         }
-        // Clamp to remaining yield
-        if (amount > yields[row][col]) {
-            amount = yields[row][col];
+        if (stolenPlots == 0) {
+            return -1;
         }
-        // Reduce yield, ensure not below 0
-        yields[row][col] -= amount;
-        if (yields[row][col] < 0) yields[row][col] = 0;
-        // If yield exhausted, mark plot empty
-        if (yields[row][col] == 0) {
-            farm[row][col] = PlotState.EMPTY;
-        }
-        // Add coins to thief via caller (ClientHandler will call addCoins)
-        return amount >= 0; // success even if 0 stolen
+        return stolenPlots;
     }
 
-    // Expose last calculated potential? For message we need amount and percent -> we will recompute inside ClientHandler with synchronized block for accuracy. Alternative: modify stealCrop to return amount.
-    // Simpler: overload returning amount.
+    // Old per-plot stealing APIs are no longer used by the new logic but kept for compatibility if needed.
+    public synchronized boolean stealCrop(int row, int col){
+        // Deprecated single-plot steal: delegate to stealRandomRipePlots when target is ripe.
+        if (farm[row][col] != PlotState.RIPE || yields[row][col] <= 0) return false;
+        int result = stealRandomRipePlots();
+        return result > 0;
+    }
+
     public synchronized int stealCropWithAmount(int row, int col){
-        if (farm[row][col] != PlotState.RIPE) return -1;
-        if (yields[row][col] <= 0) return -1;
-        double percent = random.nextDouble() * MAX_STEAL_PERCENT;
-        int amount = (int)Math.round(BASE_YIELD * percent);
-        if (amount < 0) amount = 0;
-        if (amount > yields[row][col]) amount = yields[row][col];
-        yields[row][col] -= amount;
-        if (yields[row][col] < 0) yields[row][col] = 0;
-        if (yields[row][col] == 0) farm[row][col] = PlotState.EMPTY;
-        return amount; // 0 means nothing stolen but considered attempt
+        // Deprecated API: returns total coins that thief should gain from this steal action.
+        if (farm[row][col] != PlotState.RIPE || yields[row][col] <= 0) return -1;
+        int plots = stealRandomRipePlots();
+        if (plots <= 0) return -1;
+        // Each stolen plot is worth BASE_YIELD coins for the thief
+        return plots * BASE_YIELD;
     }
 
     public synchronized String getFarmStateString(){

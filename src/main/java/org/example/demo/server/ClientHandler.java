@@ -182,14 +182,12 @@ public class ClientHandler implements Runnable{
         if (!checkLogin()) {
             return;
         }
-        if (parts.length < 4) {
-            sendMessage("ERROR Usage: STEAL [targetPlayer] [row] [col]");
+        if (parts.length < 2) {
+            sendMessage("ERROR Usage: STEAL [targetPlayer]");
             return;
         }
 
         String targetPlayer = parts[1];
-        int row = Integer.parseInt(parts[2]);
-        int col = Integer.parseInt(parts[3]);
 
         if (targetPlayer.equals(currentPlayer)) {
             sendMessage("ERROR Cannot steal from yourself");
@@ -213,29 +211,28 @@ public class ClientHandler implements Runnable{
             return;
         }
 
-        synchronized (targetState.getPlotLock(row,col)){
-            int amount = targetState.stealCropWithAmount(row,col);
-            if (amount >= 0){
+        synchronized (targetState) {
+            int amount = targetState.stealCropWithAmount(0,0); // row/col ignored in new logic
+            if (amount > 0){
                 PlayerState selfState = server.getPlayerState(currentPlayer);
-                if (selfState != null && amount > 0) {
+                if (selfState != null) {
                     selfState.addCoins(amount);
                 }
 
-                double percent = amount / 12.0; // BASE_YIELD is 12
-                String percentStr = String.format("%.0f%%", percent * 100);
-                sendMessage("SUCCESS Stole " + amount + " coins (" + percentStr + ") from " + targetPlayer);
+                int plots = amount / 12; // each plot yields 12 coins to thief
+                sendMessage("SUCCESS Stole " + plots + " plots (" + amount + " coins) from " + targetPlayer);
                 sendFarmState();
 
-                if (targetHandler != null) {
-                    targetHandler.sendMessage("NOTIFY Your crop had " + amount + " coins stolen (" + percentStr + ") by " + currentPlayer);
-                    targetHandler.sendFarmState();
-                }
+                targetHandler.sendMessage("NOTIFY Your farm had " + plots + " ripe plots stolen (" + amount + " coins) by " + currentPlayer);
+                targetHandler.sendFarmState();
                 targetState.notifyViewers();
                 if (selfState != null) {
                     selfState.notifyViewers();
                 }
+            } else if (amount == 0) {
+                sendMessage("SUCCESS Steal attempted but nothing was available to steal.");
             } else {
-                sendMessage("ERROR Steal failed - crop not ripe or empty");
+                sendMessage("ERROR Steal failed - no enough ripe plots or target farm empty");
             }
         }
 
