@@ -11,9 +11,9 @@
     <URL value="@styles.css" />
   </stylesheets>
 
-  <!-- Top status bar: coins + status message -->
+  <!-- Top status bar: coins + player name -->
   <HBox spacing="10" alignment="CENTER_LEFT">
-    <Label fx:id="coinsLabel" text="Coins: 0 | Ready." styleClass="coins-label" />
+    <Label fx:id="coinsLabel" text="Coins: 0" styleClass="coins-label" />
     <Label fx:id="playerLabel" text="Player: " styleClass="player-label" />
   </HBox>
 
@@ -28,4 +28,10 @@
     <Button fx:id="visitButton" text="Visit" onAction="#handleVisit" styleClass="plot-button action-visit" />
     <Button fx:id="returnButton" text="Return" onAction="#handleReturn" styleClass="plot-button action-return" />
   </HBox>
+
+  <!-- Bottom notification bar -->
+  <Label fx:id="statusLabel"
+         text="Please login first."
+         maxWidth="Infinity"
+         styleClass="status-bar" />
 </VBox>
