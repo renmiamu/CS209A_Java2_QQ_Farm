@@ -20,15 +20,16 @@
   -fx-padding: 0 10px 0 0;
 }
 
-/* Status message label */
+/* Bottom status/notification bar */
 .status-label {
   -fx-font-size: 14px;
-  -fx-text-fill: #757575; /* 灰色，用于状态信息 */
-  -fx-font-style: italic;
+  -fx-padding: 6 10 6 10;
+  -fx-background-color: rgba(0, 0, 0, 0.05);
+  -fx-text-fill: #555555; /* 默认中性灰色 */
 }
-.status-label.success { -fx-text-fill: #2e7d32; }
-.status-label.error { -fx-text-fill: #c62828; }
-.status-label.info { -fx-text-fill: #1565c0; }
+.status-success { -fx-text-fill: #2e7d32; }  /* 成功：绿色 */
+.status-error   { -fx-text-fill: #c62828; }  /* 错误/警告：红色 */
+.status-info    { -fx-text-fill: #1565c0; }  /* 普通信息：蓝色 */
 
 /* Game board container */
 .game-board {

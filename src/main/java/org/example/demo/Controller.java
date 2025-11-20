@@ -416,6 +416,18 @@ public class Controller {
         statusLabel.setOpacity(0);
         statusLabel.setText(text);
 
+        // Reset style classes for status label and apply level-specific class
+        statusLabel.getStyleClass().removeAll("status-label", "status-success", "status-error", "status-info");
+        // base class for general styling
+        statusLabel.getStyleClass().add("status-label");
+        if ("success".equalsIgnoreCase(level)) {
+            statusLabel.getStyleClass().add("status-success");
+        } else if ("error".equalsIgnoreCase(level) || "warning".equalsIgnoreCase(level)) {
+            statusLabel.getStyleClass().add("status-error");
+        } else {
+            statusLabel.getStyleClass().add("status-info");
+        }
+
         FadeTransition ft = new FadeTransition(Duration.millis(250), statusLabel);
         ft.setFromValue(0);
         ft.setToValue(1);
