@@ -47,9 +47,17 @@ public class FarmServer {
     }
 
     public boolean registerPlayer(String username, ClientHandler clientHandler){
-        if (onlinePlayers.containsKey(username)){
-            return false;
+        // 支持断线重连：
+        // - 如果玩家第一次登录，不存在旧状态，则创建新的 PlayerState
+        // - 如果玩家之前登录过且服务器还保留其状态，则复用原来的 PlayerState，只更新其中的 clientHandler
+        PlayerState existing = onlinePlayers.get(username);
+        if (existing != null) {
+            // 已有农场状态，表示这是一次重连，切换到新的客户端连接
+            existing.setClientHandler(clientHandler);
+            System.out.println("Player reconnected: " + username);
+            return true;
         }
+
         PlayerState playerState = new PlayerState(username);
         playerState.setClientHandler(clientHandler);
         onlinePlayers.put(username, playerState);
@@ -61,9 +69,13 @@ public class FarmServer {
         return onlinePlayers.get(username);
     }
 
+    /**
+     * 不再在这里删除 PlayerState，这样断线重连时可以保留农场状态。
+     * 仅作为可选 API，供将来真正需要“踢出并清空数据”时使用。
+     */
     public void removePlayer(String username){
         onlinePlayers.remove(username);
-        System.out.println("Player offline: " + username);
+        System.out.println("Player offline and state removed: " + username);
     }
 
     public ConcurrentHashMap<String, PlayerState> getOnlinePlayers() {

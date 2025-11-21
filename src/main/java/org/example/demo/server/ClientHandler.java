@@ -138,7 +138,7 @@ public class ClientHandler implements Runnable{
             return;
         }
         if (state.plantCrop(row, col)) {
-            sendMessage("SUCCESS Crop planted! Will mature in 5 seconds");
+            sendMessage("SUCCESS Crop planted! Will mature in 10 seconds");
             sendFarmState();
             // Notify any visitors of my farm
             state.notifyViewers();
@@ -302,14 +302,19 @@ public class ClientHandler implements Runnable{
     private void disconnect(){
         isConnected = false;
 
-        // Cleanup viewer subscription if visiting someone else
+        // 如果当前在“参观别人的农场”，把自己从对方的观众列表中移除
         if (currentViewPlayer != null && currentPlayer != null && !currentViewPlayer.equals(currentPlayer)) {
             PlayerState prev = server.getPlayerState(currentViewPlayer);
             if (prev != null) prev.removeViewer(this);
         }
 
+        // 不再从服务器的 onlinePlayers 中移除 PlayerState，以便断线重连后还能保留农场
         if (currentPlayer != null) {
-            server.removePlayer(currentPlayer);
+            PlayerState selfState = server.getPlayerState(currentPlayer);
+            if (selfState != null && selfState.getClientHandler() == this) {
+                // 将 PlayerState 上绑定的客户端引用清空，表示当前离线，但保留农场数据
+                selfState.setClientHandler(null);
+            }
         }
 
         try {
@@ -320,8 +325,7 @@ public class ClientHandler implements Runnable{
             System.err.println("Error closing client connection: " + e.getMessage());
         }
 
-        System.out.println("Client disconnected: " +
+        System.out.println("[DISCONNECT] Client disconnected, resources released for player (state preserved): " +
                 (currentPlayer != null ? currentPlayer : "unknown"));
-
     }
 }

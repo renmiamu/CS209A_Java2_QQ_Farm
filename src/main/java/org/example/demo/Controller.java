@@ -45,12 +45,20 @@ public class Controller {
     @FXML
     private Button returnButton;
 
+    @FXML
+    private Button reconnectButton;
+
+    @FXML
+    private Button disconnectButton;
+
     private ClientNetworkService clientNetworkService;
     private int coins = 40;
     private String currentPlayer;
     private String currentViewPlayer;
     // 保存本次尝试登录的用户名，防止二次弹窗
     private String pendingUsername;
+    // 记录最近一次成功登录的用户名，用于断线重连后自动恢复会话
+    private String lastSuccessfulUsername;
     private boolean loginDialogOpen = false;
 
     public enum PlotState { EMPTY, GROWING, RIPE }
@@ -68,6 +76,7 @@ public class Controller {
     public void init(ClientNetworkService clientNetworkService) {
         this.clientNetworkService = clientNetworkService;
         this.clientNetworkService.setMessageHandler(this::handleServerMessage);
+        this.clientNetworkService.setConnectionLostHandler(this::onConnectionLost);
 
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 4; j++) {
@@ -81,6 +90,75 @@ public class Controller {
 
         // 弹出登录对话框
         promptLogin();
+
+        // 默认断线按钮隐藏，只有真正断线或用户需要模拟时再使用
+        if (disconnectButton != null) {
+            disconnectButton.setDisable(false);
+            disconnectButton.setVisible(true);
+        }
+    }
+
+    private void onConnectionLost() {
+        // Disable all game interaction buttons when disconnected
+        setActionButtonsEnabled(false);
+        showToast("Disconnected from server. Please restart server and click Reconnect.", "error");
+        if (reconnectButton != null) {
+            reconnectButton.setDisable(false);
+            reconnectButton.setVisible(true);
+        }
+    }
+
+    private void setActionButtonsEnabled(boolean enabled) {
+        if (plantButton != null) plantButton.setDisable(!enabled);
+        if (harvestButton != null) harvestButton.setDisable(!enabled);
+        if (stealButton != null) stealButton.setDisable(!enabled);
+        if (visitButton != null) visitButton.setDisable(!enabled);
+        if (returnButton != null) returnButton.setDisable(!enabled);
+    }
+
+    @FXML
+    private void handleReconnect() {
+        // 重新连接同一台服务器
+        boolean ok = clientNetworkService.reconnect("localhost", 8888);
+        if (!ok) {
+            showToast("Reconnect failed. Make sure server is running.", "error");
+            return;
+        }
+
+        clientNetworkService.setMessageHandler(this::handleServerMessage);
+        clientNetworkService.setConnectionLostHandler(this::onConnectionLost);
+
+        // 自动使用上一次成功登录的用户名恢复会话
+        if (lastSuccessfulUsername != null && !lastSuccessfulUsername.isBlank()) {
+            pendingUsername = lastSuccessfulUsername;
+            clientNetworkService.sendMessage("LOGIN " + lastSuccessfulUsername);
+            showToast("Reconnected. Restoring your farm state...", "info");
+        } else {
+            showToast("Reconnected. Please log in.", "info");
+            promptLogin();
+        }
+
+        setActionButtonsEnabled(false);
+        if (reconnectButton != null) {
+            reconnectButton.setDisable(true);
+            reconnectButton.setVisible(false);
+        }
+    }
+
+    /**
+     * UI handler to simulate a network disconnect.
+     * This calls ClientNetworkService#simulateNetworkDrop so that
+     * the server sees an abrupt socket close, and the existing
+     * connectionLost handler will update the UI without crashing.
+     */
+    @FXML
+    private void handleDisconnect() {
+        if (clientNetworkService != null && clientNetworkService.isConnected()) {
+            clientNetworkService.simulateNetworkDrop();
+            showToast("Simulated network disconnect.", "info");
+        } else {
+            showToast("Already disconnected.", "info");
+        }
     }
 
     private void promptLogin() {
@@ -122,6 +200,7 @@ public class Controller {
                     // 使用第一次输入的用户名，不再二次弹窗
                     currentPlayer = (pendingUsername != null && !pendingUsername.isBlank())
                             ? pendingUsername : currentPlayer;
+                    lastSuccessfulUsername = currentPlayer;
                     pendingUsername = null;
 
                     currentViewPlayer = currentPlayer;
@@ -129,6 +208,7 @@ public class Controller {
                         playerLabel.setText("Player: " + currentPlayer);
                     }
                     showToast("Login successful!", "success");
+                    setActionButtonsEnabled(true);
                 } else {
                     showToast("Login failed: " + message, "error");
                     // 失败时再次提示，但避免重入
@@ -147,6 +227,12 @@ public class Controller {
 
             case "FARM":
                 parseFarmState(parts);
+                // 收到完整农场状态，说明可以继续游戏
+                setActionButtonsEnabled(true);
+                if (reconnectButton != null) {
+                    reconnectButton.setDisable(true);
+                    reconnectButton.setVisible(false);
+                }
                 break;
 
             case "NOTIFY":
@@ -183,9 +269,9 @@ public class Controller {
                         try { yield = Integer.parseInt(seg[1]); } catch (NumberFormatException ignored) { }
                     }
 
-                    // if transitioned from EMPTY to GROWING (plant just started on my view), set 5s
+                    // 如果从 EMPTY 变为 GROWING，本地倒计时设置为 10s，与服务器一致
                     if (farmState[i][j] != PlotState.GROWING && newState == PlotState.GROWING) {
-                        plotGrowSeconds[i][j] = 5;
+                        plotGrowSeconds[i][j] = 10;
                     }
                     // if it became RIPE or EMPTY, clear timer
                     if (newState != PlotState.GROWING) {
@@ -291,8 +377,12 @@ public class Controller {
             refreshBoard();
             return;
         }
-        // 立刻在本地设置成长计时器为 5 秒，增强视觉反馈
-        plotGrowSeconds[selectedRow][selectedCol] = 5;
+        if (clientNetworkService == null || !clientNetworkService.isConnected()) {
+            showToast("Not connected to server.", "error");
+            return;
+        }
+        // 本地立即设置为 10s 倒计时，增强反馈效果
+        plotGrowSeconds[selectedRow][selectedCol] = 10;
         clientNetworkService.sendMessage("PLANT " + selectedRow + " " + selectedCol);
     }
 
@@ -308,6 +398,10 @@ public class Controller {
             refreshBoard();
             return;
         }
+        if (clientNetworkService == null || !clientNetworkService.isConnected()) {
+            showToast("Not connected to server.", "error");
+            return;
+        }
         clientNetworkService.sendMessage("HARVEST " + selectedRow + " " + selectedCol);
     }
 
@@ -316,6 +410,10 @@ public class Controller {
         if (currentPlayer == null) {
             showToast("Please login first.", "error");
             refreshBoard();
+            return;
+        }
+        if (clientNetworkService == null || !clientNetworkService.isConnected()) {
+            showToast("Not connected to server.", "error");
             return;
         }
 
@@ -337,6 +435,10 @@ public class Controller {
             refreshBoard();
             return;
         }
+        if (clientNetworkService == null || !clientNetworkService.isConnected()) {
+            showToast("Not connected to server.", "error");
+            return;
+        }
 
         TextInputDialog dialog = new TextInputDialog("player2");
         dialog.setTitle("Visit Friend");
@@ -354,11 +456,19 @@ public class Controller {
             refreshBoard();
             return;
         }
+        if (clientNetworkService == null || !clientNetworkService.isConnected()) {
+            showToast("Not connected to server.", "error");
+            return;
+        }
         clientNetworkService.sendMessage("RETURN");
     }
 
     @FXML
     private void handlePing() {
+        if (clientNetworkService == null || !clientNetworkService.isConnected()) {
+            showToast("Not connected to server.", "error");
+            return;
+        }
         clientNetworkService.sendMessage("PING");
     }
 

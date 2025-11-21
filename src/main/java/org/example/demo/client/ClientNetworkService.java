@@ -12,6 +12,12 @@ public class ClientNetworkService {
     private PrintWriter out;
     private Consumer<String> messageHandler;
     private boolean connected = false;
+    // Callback when connection to server is lost
+    private Runnable connectionLostHandler;
+
+    public void setConnectionLostHandler(Runnable handler) {
+        this.connectionLostHandler = handler;
+    }
 
     public void connect(String serverHost, int serverPort) throws IOException {
         this.socket = new Socket(serverHost, serverPort);
@@ -20,6 +26,18 @@ public class ClientNetworkService {
         this.connected = true;
 
         new Thread(this::messageListener).start();
+    }
+
+    // Simple reconnect helper used by UI when user clicks Reconnect
+    public synchronized boolean reconnect(String serverHost, int serverPort) {
+        disconnect();
+        try {
+            connect(serverHost, serverPort);
+            return true;
+        } catch (IOException e) {
+            System.err.println("Reconnect failed: " + e.getMessage());
+            return false;
+        }
     }
 
     public void setMessageHandler(Consumer<String> messageHandler) {
@@ -48,10 +66,32 @@ public class ClientNetworkService {
         }catch (IOException e) {
             System.err.println("Connection lost: " + e.getMessage());
         } finally {
+            // Mark as disconnected first so UI will stop sending further messages
+            connected = false;
+            // Notify UI on FX thread that connection was lost
+            if (connectionLostHandler != null) {
+                javafx.application.Platform.runLater(connectionLostHandler);
+            }
             disconnect();
         }
     }
 
+    /**
+     * Simulate a sudden network drop from the client side.
+     * This will close the underlying socket without sending any
+     * application-level logout, so that the server experiences it
+     * as a real disconnect.
+     */
+    public synchronized void simulateNetworkDrop() {
+        connected = false;
+        try {
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+            }
+        } catch (IOException e) {
+            System.err.println("Error simulating network drop: " + e.getMessage());
+        }
+    }
 
     public void disconnect() {
         connected = false;

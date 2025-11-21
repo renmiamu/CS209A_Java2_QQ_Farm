@@ -62,7 +62,7 @@ public class PlayerState {
                     notifyViewers();
                 }
             }
-        }, 5, TimeUnit.SECONDS);
+        }, 10, TimeUnit.SECONDS);
 
         return true;
     }
@@ -141,6 +141,12 @@ public class PlayerState {
         if (plots <= 0) return -1;
         // Each stolen plot is worth BASE_YIELD coins for the thief
         return plots * BASE_YIELD;
+    }
+
+    public void shutdown() {
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdownNow();
+        }
     }
 
     public synchronized String getFarmStateString(){

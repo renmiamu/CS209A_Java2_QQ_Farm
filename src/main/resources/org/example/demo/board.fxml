@@ -29,6 +29,11 @@
     <Button fx:id="returnButton" text="Return" onAction="#handleReturn" styleClass="plot-button action-return" />
   </HBox>
 
+  <HBox spacing="10" alignment="CENTER">
+    <Button fx:id="reconnectButton" text="Reconnect" onAction="#handleReconnect" disable="true" visible="false" styleClass="plot-button action-reconnect" />
+    <Button fx:id="disconnectButton" text="Disconnect" onAction="#handleDisconnect" styleClass="plot-button action-disconnect" />
+  </HBox>
+
   <!-- Bottom notification bar -->
   <Label fx:id="statusLabel"
          text="Please login first."
